@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}首页 - 英语单词智能记忆系统 V2{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>学习仪表盘</h1>
+    <p class="page-subtitle">智能间隔复习 · 掌握度追踪 · 错词分析</p>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card stat-blue">
+        <div class="stat-icon">📖</div>
+        <div class="stat-value">{{ total_words }}</div>
+        <div class="stat-label">词汇总量</div>
+    </div>
+    <div class="stat-card stat-green">
+        <div class="stat-icon">✏️</div>
+        <div class="stat-value">{{ total_questions }}</div>
+        <div class="stat-label">累计答题数</div>
+    </div>
+    <div class="stat-card stat-purple">
+        <div class="stat-icon">✅</div>
+        <div class="stat-value">{{ correct_answers }}</div>
+        <div class="stat-label">答对题数</div>
+    </div>
+    <div class="stat-card stat-red">
+        <div class="stat-icon">❌</div>
+        <div class="stat-value">{{ incorrect_answers }}</div>
+        <div class="stat-label">答错题数</div>
+    </div>
+    <div class="stat-card stat-orange">
+        <div class="stat-icon">🎯</div>
+        <div class="stat-value">{{ accuracy }}%</div>
+        <div class="stat-label">正确率</div>
+    </div>
+    <div class="stat-card stat-teal">
+        <div class="stat-icon">📝</div>
+        <div class="stat-value">{{ wrong_count }}</div>
+        <div class="stat-label">错词本记录</div>
+    </div>
+</div>
+
+<div class="section-header">
+    <h2>掌握度分布</h2>
+</div>
+<div class="mastery-overview-grid">
+    <div class="mastery-overview-card mastery-unlearned">
+        <div class="mastery-icon">⚪</div>
+        <div class="mastery-value">{{ unlearned_count }}</div>
+        <div class="mastery-label">未学习</div>
+    </div>
+    <div class="mastery-overview-card mastery-learning">
+        <div class="mastery-icon">🟡</div>
+        <div class="mastery-value">{{ mastery_dist.learning }}</div>
+        <div class="mastery-label">学习中</div>
+    </div>
+    <div class="mastery-overview-card mastery-familiar">
+        <div class="mastery-icon">🔵</div>
+        <div class="mastery-value">{{ mastery_dist.familiar }}</div>
+        <div class="mastery-label">基本掌握</div>
+    </div>
+    <div class="mastery-overview-card mastery-mastered">
+        <div class="mastery-icon">🟢</div>
+        <div class="mastery-value">{{ mastery_dist.mastered }}</div>
+        <div class="mastery-label">已掌握</div>
+    </div>
+</div>
+
+<div class="section-header">
+    <h2>今日复习</h2>
+</div>
+<div class="review-summary-grid">
+    <div class="review-summary-card">
+        <div class="review-summary-icon">⏰</div>
+        <div class="review-summary-value">{{ due_count }}</div>
+        <div class="review-summary-label">待复习单词</div>
+        {% if due_count > 0 %}
+        <a href="{{ url_for('review_page') }}" class="btn btn-primary btn-sm">开始复习</a>
+        {% else %}
+        <span class="badge badge-success">暂无待复习</span>
+        {% endif %}
+    </div>
+    <div class="review-summary-card">
+        <div class="review-summary-icon">📅</div>
+        <div class="review-summary-value">{{ reviews_today }}</div>
+        <div class="review-summary-label">今日已复习</div>
+    </div>
+</div>
+
+<div class="action-grid">
+    <a href="{{ url_for('vocabulary_page') }}" class="action-card">
+        <div class="action-icon">📖</div>
+        <h3>浏览词汇库</h3>
+        <p>查看所有单词及掌握度</p>
+    </a>
+    <a href="{{ url_for('practice_page') }}" class="action-card">
+        <div class="action-icon">✏️</div>
+        <h3>开始自测</h3>
+        <p>随机出题，智能错词分析</p>
+    </a>
+    <a href="{{ url_for('review_page') }}" class="action-card">
+        <div class="action-icon">🔄</div>
+        <h3>每日复习</h3>
+        <p>基于间隔复习算法的智能复习</p>
+    </a>
+    <a href="{{ url_for('wrong_words_page') }}" class="action-card">
+        <div class="action-icon">📝</div>
+        <h3>错词专项练习</h3>
+        <p>针对错词进行分类练习</p>
+    </a>
+    <a href="{{ url_for('analytics_page') }}" class="action-card">
+        <div class="action-icon">📊</div>
+        <h3>学习分析</h3>
+        <p>查看掌握度分布与学习趋势</p>
+    </a>
+</div>
+
+{% if total_questions == 0 %}
+<div class="info-banner">
+    <p>👋 你还没有开始练习，点击「开始自测」来检验你的英语词汇水平吧！</p>
+</div>
+{% endif %}
+{% endblock %}

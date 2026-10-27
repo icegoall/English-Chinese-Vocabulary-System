@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}单词自测 - 英语单词智能记忆系统 V2{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>单词自测</h1>
+    <p class="page-subtitle">选择测试模式，检验你的词汇掌握程度</p>
+</div>
+
+<div id="modeScreen" class="mode-screen">
+    <div class="mode-grid">
+        <div class="mode-card" id="modeEn2Cn">
+            <div class="mode-icon">🇨🇳</div>
+            <h3>英译中（选择题）</h3>
+            <p>看英文单词，选择正确的中文释义</p>
+            <button class="btn btn-primary btn-large" onclick="startPractice('en2cn')">开始测试</button>
+        </div>
+        <div class="mode-card" id="modeCn2En">
+            <div class="mode-icon">⌨</div>
+            <h3>中译英（拼写题）</h3>
+            <p>看中文释义，输入正确的英文单词</p>
+            <button class="btn btn-primary btn-large" onclick="startPractice('cn2en')">开始测试</button>
+        </div>
+    </div>
+    <div class="mode-options">
+        <label>题目数量：</label>
+        <select id="questionCount">
+            <option value="5">5 题</option>
+            <option value="10" selected>10 题</option>
+            <option value="15">15 题</option>
+            <option value="20">20 题</option>
+        </select>
+    </div>
+</div>
+
+<div id="quizScreen" class="quiz-screen" style="display:none;">
+    <div class="quiz-progress">
+        <span id="progressText">第 1 / 10 题</span>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+    <div class="quiz-question" id="questionArea"></div>
+    <div class="quiz-actions">
+        <button class="btn btn-secondary" id="prevBtn" onclick="prevQuestion()" style="display:none;">上一题</button>
+        <button class="btn btn-primary" id="nextBtn" onclick="nextQuestion()" disabled>下一题</button>
+        <button class="btn btn-success" id="submitBtn" onclick="submitPractice()" style="display:none;" disabled>提交答卷</button>
+    </div>
+</div>
+
+<div id="loadingScreen" class="loading-screen" style="display:none;">
+    <div class="spinner"></div>
+    <p>正在生成题目...</p>
+</div>
+
+<div id="errorBanner" class="error-banner" style="display:none;">
+    <p id="errorText"></p>
+    <button class="btn btn-secondary" onclick="backToMode()">返回</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var practiceMode = '', questions = [], currentAnswers = [], currentQuestionIndex = 0;
+var apiEndpoint = '/api/practice/questions';
+
+function startPractice(mode) {
+    practiceMode = mode;
+    var count = document.getElementById('questionCount').value;
+    document.getElementById('modeScreen').style.display = 'none';
+    document.getElementById('loadingScreen').style.display = 'block';
+    fetch(apiEndpoint + '?mode=' + mode + '&count=' + count)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) { showError(data.error); return; }
+            if (data.count === 0) { showError(data.message || '没有可用的题目'); return; }
+            questions = data.questions;
+            currentAnswers = new Array(questions.length).fill(null);
+            currentQuestionIndex = 0;
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('quizScreen').style.display = 'block';
+            renderQuestion();
+        })
+        .catch(function() { showError('无法加载题目，请重试。'); });
+}
+
+function renderQuestion() {
+    var q = questions[currentQuestionIndex];
+    var area = document.getElementById('questionArea');
+    var total = questions.length;
+    document.getElementById('progressText').textContent = '第 ' + (currentQuestionIndex + 1) + ' / ' + total + ' 题';
+    document.getElementById('progressFill').style.width = (((currentQuestionIndex + 1) / total) * 100) + '%';
+    if (q.type === 'en2cn') {
+        var optionsHtml = '';
+        q.options.forEach(function(opt) {
+            var selected = currentAnswers[currentQuestionIndex] === opt ? 'selected' : '';
+            optionsHtml += '<button class="option-btn ' + selected + '" data-opt="' + escapeAttr(opt) + '">' + opt + '</button>';
+        });
+        area.innerHTML = '<div class="question-prompt"><p class="question-label">请选择下列英文单词的正确中文释义：</p><h2 class="question-word">' + q.prompt + '<span class="question-pos">' + q.pos + '</span></h2></div><div class="question-options">' + optionsHtml + '</div>';
+        area.querySelectorAll('.option-btn').forEach(function(btn) { btn.addEventListener('click', function() { selectOption(this.dataset.opt, this); }); });
+    } else {
+        var currentVal = currentAnswers[currentQuestionIndex] || '';
+        area.innerHTML = '<div class="question-prompt"><p class="question-label">请输入下列中文释义对应的英文单词：</p><h2 class="question-word">' + q.prompt + '<span class="question-pos">' + q.pos + '</span></h2></div><div class="question-input"><input type="text" id="spellingInput" placeholder="请输入英文单词..." value="' + escapeAttr(currentVal) + '" autocomplete="off"></div>';
+        var inp = document.getElementById('spellingInput');
+        inp.addEventListener('input', function() { onSpellingInput(this.value); });
+        inp.focus();
+    }
+    document.getElementById('prevBtn').style.display = currentQuestionIndex > 0 ? 'inline-block' : 'none';
+    var isLast = currentQuestionIndex === total - 1;
+    document.getElementById('nextBtn').style.display = isLast ? 'none' : 'inline-block';
+    document.getElementById('submitBtn').style.display = isLast ? 'inline-block' : 'none';
+    updateActionButtons();
+}
+
+function selectOption(value, btn) {
+    currentAnswers[currentQuestionIndex] = value;
+    document.querySelectorAll('.option-btn').forEach(function(b) { b.classList.remove('selected'); });
+    btn.classList.add('selected');
+    updateActionButtons();
+}
+function onSpellingInput(value) { currentAnswers[currentQuestionIndex] = value.trim(); updateActionButtons(); }
+function updateActionButtons() {
+    var answered = currentAnswers[currentQuestionIndex] !== null && currentAnswers[currentQuestionIndex] !== '';
+    document.getElementById('nextBtn').disabled = !answered;
+    document.getElementById('submitBtn').disabled = !answered;
+}
+function prevQuestion() { if (currentQuestionIndex > 0) { currentQuestionIndex--; renderQuestion(); } }
+function nextQuestion() { if (currentQuestionIndex < questions.length - 1) { currentQuestionIndex++; renderQuestion(); } }
+
+function submitPractice() {
+    var answers = questions.map(function(q, idx) {
+        var sa = currentAnswers[idx] || '';
+        if (q.type === 'en2cn') return { word: q.word, correct_meaning: q.correct_meaning, student_answer: sa };
+        return { word: q.word, correct_meaning: q.correct_meaning, student_answer: sa, confusable: q.confusable || [] };
+    });
+    document.getElementById('quizScreen').style.display = 'none';
+    document.getElementById('loadingScreen').style.display = 'block';
+    document.getElementById('loadingScreen').querySelector('p').textContent = '正在分析答卷...';
+    fetch('/api/practice/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: practiceMode, answers: answers }) })
+        .then(function(r) { return r.json(); })
+        .then(function(data) { if (data.error) { showError(data.error); return; } window.location.href = '/results'; })
+        .catch(function() { showError('提交失败，请重试。'); });
+}
+function backToMode() {
+    document.getElementById('errorBanner').style.display = 'none';
+    document.getElementById('modeScreen').style.display = 'block';
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('quizScreen').style.display = 'none';
+}
+function showError(msg) {
+    document.getElementById('errorText').textContent = msg;
+    document.getElementById('errorBanner').style.display = 'block';
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('quizScreen').style.display = 'none';
+}
+function escapeAttr(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+</script>
+{% endblock %}

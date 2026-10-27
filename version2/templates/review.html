@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}每日复习 - 英语单词智能记忆系统 V2{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>每日复习</h1>
+    <p class="page-subtitle">基于间隔复习算法，智能安排需要复习的单词</p>
+</div>
+
+{% if due_words|length > 0 %}
+<div class="review-info-banner">
+    <p>⏰ 你有 <strong>{{ due_words|length }}</strong> 个单词需要复习</p>
+</div>
+
+<div class="review-actions">
+    <button class="btn btn-primary btn-large" onclick="startReview('cn2en')">开始复习（中译英）</button>
+    <button class="btn btn-primary btn-large" onclick="startReview('en2cn')">开始复习（英译中）</button>
+</div>
+
+<div class="section-header"><h2>待复习单词列表</h2></div>
+<div class="review-list">
+    {% for w in due_words %}
+    <div class="review-item mastery-border-{{ w.mastery_level }}">
+        <div class="review-item-word">{{ w.word }}</div>
+        <div class="review-item-meaning">{{ w.meaning }}</div>
+        <div class="review-item-meta">
+            <span class="mastery-badge mastery-badge-{{ w.mastery_level }}">{{ w.mastery_label }}</span>
+            <span class="review-interval">间隔 {{ w.review_interval_days }} 天</span>
+            <span class="review-streak">连续正确 {{ w.consecutive_correct }} 次</span>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% else %}
+<div class="empty-state">
+    <div class="empty-icon">✅</div>
+    <p>当前没有需要复习的单词！</p>
+    <p style="font-size:0.9rem;color:var(--color-text-light);">去自测新单词，或查看学习分析页面了解你的学习进度。</p>
+    <div style="margin-top:16px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+        <a href="{{ url_for('practice_page') }}" class="btn btn-primary">开始自测</a>
+        <a href="{{ url_for('analytics_page') }}" class="btn btn-secondary">学习分析</a>
+    </div>
+</div>
+{% endif %}
+
+<!-- Review quiz screen -->
+<div id="quizScreen" class="quiz-screen" style="display:none;">
+    <div class="quiz-progress">
+        <span id="progressText">第 1 / 1 题</span>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+    <div class="quiz-question" id="questionArea"></div>
+    <div class="quiz-actions">
+        <button class="btn btn-secondary" id="prevBtn" onclick="prevQuestion()" style="display:none;">上一题</button>
+        <button class="btn btn-primary" id="nextBtn" onclick="nextQuestion()" disabled>下一题</button>
+        <button class="btn btn-success" id="submitBtn" onclick="submitReview()" style="display:none;" disabled>提交答卷</button>
+        <button class="btn btn-secondary" onclick="cancelReview()">取消</button>
+    </div>
+</div>
+
+<div id="loadingScreen" class="loading-screen" style="display:none;">
+    <div class="spinner"></div><p>正在生成复习题目...</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var questions = [], currentAnswers = [], currentQuestionIndex = 0, practiceMode = 'cn2en';
+
+function startReview(mode) {
+    practiceMode = mode;
+    document.getElementById('loadingScreen').style.display = 'block';
+    fetch('/api/review/questions?mode=' + mode + '&count=20')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) { alert(data.error); document.getElementById('loadingScreen').style.display = 'none'; return; }
+            if (data.count === 0) { alert(data.message || '没有需要复习的单词'); document.getElementById('loadingScreen').style.display = 'none'; return; }
+            questions = data.questions;
+            currentAnswers = new Array(questions.length).fill(null);
+            currentQuestionIndex = 0;
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('quizScreen').style.display = 'block';
+            renderQuestion();
+        })
+        .catch(function() { alert('加载失败'); document.getElementById('loadingScreen').style.display = 'none'; });
+}
+
+function renderQuestion() {
+    var q = questions[currentQuestionIndex], area = document.getElementById('questionArea'), total = questions.length;
+    document.getElementById('progressText').textContent = '第 ' + (currentQuestionIndex + 1) + ' / ' + total + ' 题';
+    document.getElementById('progressFill').style.width = (((currentQuestionIndex + 1) / total) * 100) + '%';
+    if (q.type === 'en2cn') {
+        var html = '';
+        q.options.forEach(function(opt) { var sel = currentAnswers[currentQuestionIndex] === opt ? 'selected' : ''; html += '<button class="option-btn ' + sel + '" data-opt="' + esc(opt) + '">' + opt + '</button>'; });
+        area.innerHTML = '<div class="question-prompt"><p class="question-label">请选择正确的中文释义：</p><h2 class="question-word">' + q.prompt + '<span class="question-pos">' + q.pos + '</span></h2></div><div class="question-options">' + html + '</div>';
+        area.querySelectorAll('.option-btn').forEach(function(b) { b.addEventListener('click', function() { currentAnswers[currentQuestionIndex] = this.dataset.opt; area.querySelectorAll('.option-btn').forEach(function(x) { x.classList.remove('selected'); }); this.classList.add('selected'); updateBtns(); }); });
+    } else {
+        var v = currentAnswers[currentQuestionIndex] || '';
+        area.innerHTML = '<div class="question-prompt"><p class="question-label">请输入英文单词：</p><h2 class="question-word">' + q.prompt + '<span class="question-pos">' + q.pos + '</span></h2></div><div class="question-input"><input type="text" id="spellingInput" value="' + esc(v) + '" autocomplete="off"></div>';
+        var inp = document.getElementById('spellingInput');
+        inp.addEventListener('input', function() { currentAnswers[currentQuestionIndex] = this.value.trim(); updateBtns(); });
+        inp.focus();
+    }
+    document.getElementById('prevBtn').style.display = currentQuestionIndex > 0 ? 'inline-block' : 'none';
+    var isLast = currentQuestionIndex === total - 1;
+    document.getElementById('nextBtn').style.display = isLast ? 'none' : 'inline-block';
+    document.getElementById('submitBtn').style.display = isLast ? 'inline-block' : 'none';
+    updateBtns();
+}
+function updateBtns() { var a = currentAnswers[currentQuestionIndex] !== null && currentAnswers[currentQuestionIndex] !== ''; document.getElementById('nextBtn').disabled = !a; document.getElementById('submitBtn').disabled = !a; }
+function prevQuestion() { if (currentQuestionIndex > 0) { currentQuestionIndex--; renderQuestion(); } }
+function nextQuestion() { if (currentQuestionIndex < questions.length - 1) { currentQuestionIndex++; renderQuestion(); } }
+function cancelReview() { document.getElementById('quizScreen').style.display = 'none'; }
+
+function submitReview() {
+    var answers = questions.map(function(q, idx) { var sa = currentAnswers[idx] || ''; if (q.type === 'en2cn') return { word: q.word, correct_meaning: q.correct_meaning, student_answer: sa }; return { word: q.word, correct_meaning: q.correct_meaning, student_answer: sa, confusable: q.confusable || [] }; });
+    document.getElementById('quizScreen').style.display = 'none';
+    document.getElementById('loadingScreen').style.display = 'block';
+    document.getElementById('loadingScreen').querySelector('p').textContent = '正在分析复习结果...';
+    fetch('/api/practice/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: practiceMode, answers: answers }) })
+        .then(function(r) { return r.json(); })
+        .then(function(data) { if (data.error) { alert(data.error); document.getElementById('loadingScreen').style.display = 'none'; return; } window.location.href = '/results'; })
+        .catch(function() { alert('提交失败'); document.getElementById('loadingScreen').style.display = 'none'; });
+}
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+</script>
+{% endblock %}

@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}学习分析 - 英语单词智能记忆系统 V2{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>学习分析</h1>
+    <p class="page-subtitle">全面了解你的词汇学习进度和掌握情况</p>
+</div>
+
+<div class="section-header"><h2>掌握度分布</h2></div>
+<div class="mastery-overview-grid">
+    <div class="mastery-overview-card mastery-unlearned">
+        <div class="mastery-icon">⚪</div>
+        <div class="mastery-value">{{ unlearned_count }}</div>
+        <div class="mastery-label">未学习</div>
+    </div>
+    <div class="mastery-overview-card mastery-learning">
+        <div class="mastery-icon">🟡</div>
+        <div class="mastery-value">{{ mastery_dist.learning }}</div>
+        <div class="mastery-label">学习中</div>
+    </div>
+    <div class="mastery-overview-card mastery-familiar">
+        <div class="mastery-icon">🔵</div>
+        <div class="mastery-value">{{ mastery_dist.familiar }}</div>
+        <div class="mastery-label">基本掌握</div>
+    </div>
+    <div class="mastery-overview-card mastery-mastered">
+        <div class="mastery-icon">🟢</div>
+        <div class="mastery-value">{{ mastery_dist.mastered }}</div>
+        <div class="mastery-label">已掌握</div>
+    </div>
+</div>
+
+<div class="section-header"><h2>今日概况</h2></div>
+<div class="analytics-today-grid">
+    <div class="analytics-today-card">
+        <div class="analytics-icon">⏰</div>
+        <div class="analytics-value">{{ due_count }}</div>
+        <div class="analytics-label">待复习单词</div>
+    </div>
+    <div class="analytics-today-card">
+        <div class="analytics-icon">📅</div>
+        <div class="analytics-value">{{ reviews_today }}</div>
+        <div class="analytics-label">今日已复习</div>
+    </div>
+    <div class="analytics-today-card">
+        <div class="analytics-icon">📖</div>
+        <div class="analytics-value">{{ total_words }}</div>
+        <div class="analytics-label">词汇总量</div>
+    </div>
+</div>
+
+<div class="section-header"><h2>近7天正确率趋势</h2></div>
+<div class="trend-chart">
+    {% for day in trend %}
+    <div class="trend-bar-wrapper">
+        <div class="trend-bar" style="height: {{ day.accuracy }}%;" title="{{ day.date }}: {{ day.correct }}/{{ day.total }} = {{ day.accuracy }}%"></div>
+        <div class="trend-label">{{ day.date }}</div>
+        <div class="trend-value">{{ day.accuracy }}%</div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if weak_words|length > 0 %}
+<div class="section-header"><h2>薄弱单词</h2></div>
+<div class="weak-words-table-wrapper">
+    <table class="wrong-words-table">
+        <thead>
+            <tr>
+                <th>单词</th>
+                <th>释义</th>
+                <th>掌握度</th>
+                <th>总复习次数</th>
+                <th>正确次数</th>
+                <th>错误次数</th>
+                <th>错误率</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ww in weak_words %}
+            <tr>
+                <td class="word-cell">{{ ww.word }}</td>
+                <td>{{ ww.meaning or '-' }}</td>
+                <td><span class="mastery-badge mastery-badge-{{ ww.mastery_level }}">{{ ww.mastery_label or '-' }}</span></td>
+                <td>{{ ww.total_reviews }}</td>
+                <td>{{ ww.total_correct }}</td>
+                <td>{{ ww.total_incorrect }}</td>
+                <td>
+                    {% if ww.total_reviews > 0 %}
+                    {{ (ww.total_incorrect / ww.total_reviews * 100)|round(1) }}%
+                    {% else %}0%{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="info-banner"><p>暂无薄弱单词数据，开始练习后将显示错误率最高的单词。</p></div>
+{% endif %}
+
+{% if recent_logs|length > 0 %}
+<div class="section-header"><h2>最近复习记录</h2></div>
+<div class="review-log-table-wrapper">
+    <table class="wrong-words-table">
+        <thead>
+            <tr>
+                <th>单词</th>
+                <th>结果</th>
+                <th>掌握度变化</th>
+                <th>间隔变化</th>
+                <th>时间</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in recent_logs %}
+            <tr>
+                <td class="word-cell">{{ log.word }}</td>
+                <td>
+                    {% if log.was_correct %}<span class="status-correct">✅ 正确</span>
+                    {% else %}<span class="status-incorrect">❌ 错误</span>{% endif %}
+                </td>
+                <td>{{ log.mastery_before or '未学习' }} → {{ log.mastery_after or '-' }}</td>
+                <td>{{ log.interval_before or 0 }} → {{ log.interval_after or 0 }} 天</td>
+                <td class="time-cell">{{ log.review_time[:19] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}

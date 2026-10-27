@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}词汇库 - 英语单词智能记忆系统 V2{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>词汇库</h1>
+    <p class="page-subtitle">共 {{ words|length }} 个单词 · 显示掌握度状态</p>
+</div>
+
+<div class="search-bar">
+    <input type="text" id="searchInput" placeholder="搜索单词或释义..." value="{{ keyword }}">
+    <button id="searchBtn" class="btn btn-primary">搜索</button>
+    <button id="clearSearchBtn" class="btn btn-secondary">重置</button>
+</div>
+
+<div class="mastery-legend">
+    <span class="legend-item"><span class="legend-dot mastery-dot-unlearned"></span>未学习</span>
+    <span class="legend-item"><span class="legend-dot mastery-dot-learning"></span>学习中</span>
+    <span class="legend-item"><span class="legend-dot mastery-dot-familiar"></span>基本掌握</span>
+    <span class="legend-item"><span class="legend-dot mastery-dot-mastered"></span>已掌握</span>
+</div>
+
+<div class="vocabulary-grid" id="vocabularyGrid">
+    {% for word in words %}
+    <div class="word-card mastery-border-{{ word.mastery_level }}">
+        <div class="word-header">
+            <h3 class="word-en">{{ word.word }}</h3>
+            <span class="word-pos">{{ word.pos }}</span>
+            <span class="mastery-badge mastery-badge-{{ word.mastery_level }}">{{ word.mastery_label }}</span>
+        </div>
+        <p class="word-meaning">{{ word.meaning }}</p>
+        <div class="word-example">
+            <p class="example-en">{{ word.example }}</p>
+            <p class="example-cn">{{ word.example_cn }}</p>
+        </div>
+        {% if word.confusable %}
+        <div class="word-confusable">
+            <span class="confusable-label">⚠️ 形近词：</span>
+            {% for cw in word.confusable %}
+                {% if cw != word.word %}
+                <span class="confusable-word">{{ cw }}</span>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% if word.next_review %}
+        <div class="word-next-review">
+            {% if word.mastery_level == 'mastered' %}
+            <span class="next-review-text">✅ 已掌握 · 间隔 {{ word.consecutive_correct }} 次正确</span>
+            {% else %}
+            <span class="next-review-text">🔄 下次复习：{{ word.next_review[:10] }}</span>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+{% if words|length == 0 %}
+<div class="empty-state">
+    <p>未找到匹配的单词，请尝试其他关键词。</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('searchBtn').addEventListener('click', function() {
+    var keyword = document.getElementById('searchInput').value.trim();
+    window.location.href = '/vocabulary' + (keyword ? '?q=' + encodeURIComponent(keyword) : '');
+});
+document.getElementById('clearSearchBtn').addEventListener('click', function() {
+    window.location.href = '/vocabulary';
+});
+document.getElementById('searchInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') document.getElementById('searchBtn').click();
+});
+</script>
+{% endblock %}

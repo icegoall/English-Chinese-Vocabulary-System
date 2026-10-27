@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block title %}错词本 - 英语单词智能记忆系统 V2{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>错词本</h1>
+    <p class="page-subtitle">共 {{ wrong_words|length }} 条记录 · 支持分类专项练习</p>
+</div>
+
+{% if wrong_words|length > 0 %}
+<div class="wrong-words-actions">
+    <button class="btn btn-primary" onclick="startTargetedPractice('')">练习全部错词</button>
+    {% if categories.get('spelling', 0) > 0 %}
+    <button class="btn btn-warning" onclick="startTargetedPractice('spelling')">拼写错误 ({{ categories.spelling }})</button>
+    {% endif %}
+    {% if categories.get('confusable', 0) > 0 %}
+    <button class="btn btn-purple" onclick="startTargetedPractice('confusable')">形近词混淆 ({{ categories.confusable }})</button>
+    {% endif %}
+    {% if categories.get('meaning', 0) > 0 %}
+    <button class="btn btn-info" onclick="startTargetedPractice('meaning')">词义答错 ({{ categories.meaning }})</button>
+    {% endif %}
+    {% if categories.get('unrelated', 0) > 0 %}
+    <button class="btn btn-secondary" onclick="startTargetedPractice('unrelated')">其他错误 ({{ categories.unrelated }})</button>
+    {% endif %}
+    <button class="btn btn-danger" id="clearAllBtn">清空错词本</button>
+</div>
+
+<div class="mode-options" style="margin-bottom:16px;">
+    <label>练习模式：</label>
+    <select id="wrongWordMode">
+        <option value="cn2en">中译英（拼写题）</option>
+        <option value="en2cn">英译中（选择题）</option>
+    </select>
+</div>
+
+<div class="wrong-words-table-wrapper">
+    <table class="wrong-words-table">
+        <thead>
+            <tr>
+                <th>单词</th>
+                <th>你的答案</th>
+                <th>正确答案</th>
+                <th>错误类型</th>
+                <th>掌握度</th>
+                <th>错误次数</th>
+                <th>最近错误时间</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ww in wrong_words %}
+            <tr>
+                <td class="word-cell">{{ ww.word }}</td>
+                <td class="answer-cell">{{ ww.student_answer }}</td>
+                <td class="correct-cell">{{ ww.correct_answer }}</td>
+                <td>
+                    <span class="error-tag error-tag-{{ ww.error_category }}">
+                        {% if ww.error_category == 'spelling' %}拼写错误
+                        {% elif ww.error_category == 'confusable' %}形近词混淆
+                        {% elif ww.error_category == 'meaning' %}词义答错
+                        {% else %}答案不正确{% endif %}
+                    </span>
+                </td>
+                <td><span class="mastery-badge mastery-badge-{{ ww.mastery_level }}">{{ ww.mastery_label }}</span></td>
+                <td>{{ ww.mistake_count }}</td>
+                <td class="time-cell">{{ ww.last_mistake_time[:19] }}</td>
+                <td>
+                    <button class="btn btn-sm btn-primary review-one-btn" data-word="{{ ww.word }}">复习</button>
+                    <button class="btn btn-sm btn-danger delete-btn" data-id="{{ ww.id }}">删除</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="empty-icon">🎉</div>
+    <p>错词本为空，快去练习吧！</p>
+    <a href="{{ url_for('practice_page') }}" class="btn btn-primary">开始自测</a>
+</div>
+{% endif %}
+
+<!-- Targeted practice quiz screen -->
+<div id="targetedQuizScreen" class="quiz-screen" style="display:none;">
+    <div class="quiz-progress">
+        <span id="progressText">第 1 / 1 题</span>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+    <div class="quiz-question" id="questionArea"></div>
+    <div class="quiz-actions">
+        <button class="btn btn-secondary" id="prevBtn" onclick="prevQuestion()" style="display:none;">上一题</button>
+        <button class="btn btn-primary" id="nextBtn" onclick="nextQuestion()" disabled>下一题</button>
+        <button class="btn btn-success" id="submitBtn" onclick="submitTargetedPractice()" style="display:none;" disabled>提交答卷</button>
+        <button class="btn btn-secondary" onclick="cancelTargetedPractice()">取消</button>
+    </div>
+</div>
+
+<div id="loadingScreen" class="loading-screen" style="display:none;">
+    <div class="spinner"></div><p>正在生成题目...</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var questions = [], currentAnswers = [], currentQuestionIndex = 0, practiceMode = 'cn2en';
+
+function startTargetedPractice(category) {
+    practiceMode = document.getElementById('wrongWordMode').value;
+    var url = '/api/wrong-words/practice-questions?mode=' + practiceMode + '&count=20';
+    if (category) url += '&category=' + category;
+    document.getElementById('loadingScreen').style.display = 'block';
+    fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) { alert(data.error); document.getElementById('loadingScreen').style.display = 'none'; return; }
+            if (data.count === 0) { alert(data.message || '没有可练习的单词'); document.getElementById('loadingScreen').style.display = 'none'; return; }
+            questions = data.questions;
+            currentAnswers = new Array(questions.length).fill(null);
+            currentQuestionIndex = 0;
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('targetedQuizScreen').style.display = 'block';
+            renderQuestion();
+        })
+        .catch(function() { alert('加载失败'); document.getElementById('loadingScreen').style.display = 'none'; });
+}
+
+function renderQuestion() {
+    var q = questions[currentQuestionIndex], area = document.getElementById('questionArea'), total = questions.length;
+    document.getElementById('progressText').textContent = '第 ' + (currentQuestionIndex + 1) + ' / ' + total + ' 题';
+    document.getElementById('progressFill').style.width = (((currentQuestionIndex + 1) / total) * 100) + '%';
+    if (q.type === 'en2cn') {
+        var html = '';
+        q.options.forEach(function(opt) { var sel = currentAnswers[currentQuestionIndex] === opt ? 'selected' : ''; html += '<button class="option-btn ' + sel + '" data-opt="' + esc(opt) + '">' + opt + '</button>'; });
+        area.innerHTML = '<div class="question-prompt"><p class="question-label">请选择正确的中文释义：</p><h2 class="question-word">' + q.prompt + '<span class="question-pos">' + q.pos + '</span></h2></div><div class="question-options">' + html + '</div>';
+        area.querySelectorAll('.option-btn').forEach(function(b) { b.addEventListener('click', function() { currentAnswers[currentQuestionIndex] = this.dataset.opt; area.querySelectorAll('.option-btn').forEach(function(x) { x.classList.remove('selected'); }); this.classList.add('selected'); updateBtns(); }); });
+    } else {
+        var v = currentAnswers[currentQuestionIndex] || '';
+        area.innerHTML = '<div class="question-prompt"><p class="question-label">请输入英文单词：</p><h2 class="question-word">' + q.prompt + '<span class="question-pos">' + q.pos + '</span></h2></div><div class="question-input"><input type="text" id="spellingInput" value="' + esc(v) + '" autocomplete="off"></div>';
+        var inp = document.getElementById('spellingInput');
+        inp.addEventListener('input', function() { currentAnswers[currentQuestionIndex] = this.value.trim(); updateBtns(); });
+        inp.focus();
+    }
+    document.getElementById('prevBtn').style.display = currentQuestionIndex > 0 ? 'inline-block' : 'none';
+    var isLast = currentQuestionIndex === total - 1;
+    document.getElementById('nextBtn').style.display = isLast ? 'none' : 'inline-block';
+    document.getElementById('submitBtn').style.display = isLast ? 'inline-block' : 'none';
+    updateBtns();
+}
+function updateBtns() { var a = currentAnswers[currentQuestionIndex] !== null && currentAnswers[currentQuestionIndex] !== ''; document.getElementById('nextBtn').disabled = !a; document.getElementById('submitBtn').disabled = !a; }
+function prevQuestion() { if (currentQuestionIndex > 0) { currentQuestionIndex--; renderQuestion(); } }
+function nextQuestion() { if (currentQuestionIndex < questions.length - 1) { currentQuestionIndex++; renderQuestion(); } }
+function cancelTargetedPractice() { document.getElementById('targetedQuizScreen').style.display = 'none'; }
+
+function submitTargetedPractice() {
+    var answers = questions.map(function(q, idx) { var sa = currentAnswers[idx] || ''; if (q.type === 'en2cn') return { word: q.word, correct_meaning: q.correct_meaning, student_answer: sa }; return { word: q.word, correct_meaning: q.correct_meaning, student_answer: sa, confusable: q.confusable || [] }; });
+    document.getElementById('targetedQuizScreen').style.display = 'none';
+    document.getElementById('loadingScreen').style.display = 'block';
+    fetch('/api/practice/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: practiceMode, answers: answers }) })
+        .then(function(r) { return r.json(); })
+        .then(function(data) { if (data.error) { alert(data.error); document.getElementById('loadingScreen').style.display = 'none'; return; } window.location.href = '/results'; })
+        .catch(function() { alert('提交失败'); document.getElementById('loadingScreen').style.display = 'none'; });
+}
+
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+document.querySelectorAll('.delete-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var id = this.dataset.id;
+        if (!confirm('确定要删除这条错词记录吗？')) return;
+        fetch('/api/wrong-words/' + id, { method: 'DELETE' }).then(function(r) { return r.json(); }).then(function(d) { if (d.success) location.reload(); else alert('删除失败'); }).catch(function() { alert('删除失败'); });
+    });
+});
+
+document.getElementById('clearAllBtn')?.addEventListener('click', function() {
+    if (!confirm('确定要清空所有错词记录吗？')) return;
+    fetch('/api/wrong-words/clear', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(d) { if (d.success) location.reload(); }).catch(function() { alert('操作失败'); });
+});
+
+document.querySelectorAll('.review-one-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var word = this.dataset.word;
+        practiceMode = document.getElementById('wrongWordMode').value;
+        document.getElementById('loadingScreen').style.display = 'block';
+        fetch('/api/wrong-words/practice-questions?mode=' + practiceMode + '&count=20')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.count === 0) { alert('没有可练习的单词'); document.getElementById('loadingScreen').style.display = 'none'; return; }
+                questions = data.questions.filter(function(q) { return q.word === word; });
+                if (questions.length === 0) { alert('未找到该单词的题目'); document.getElementById('loadingScreen').style.display = 'none'; return; }
+                currentAnswers = new Array(questions.length).fill(null);
+                currentQuestionIndex = 0;
+                document.getElementById('loadingScreen').style.display = 'none';
+                document.getElementById('targetedQuizScreen').style.display = 'block';
+                renderQuestion();
+            });
+    });
+});
+</script>
+{% endblock %}

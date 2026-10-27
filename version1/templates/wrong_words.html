@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}错词本 - 英语单词智能记忆系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>错词本</h1>
+    <p class="page-subtitle">共 {{ wrong_words|length }} 条记录</p>
+</div>
+
+{% if wrong_words|length > 0 %}
+<div class="wrong-words-actions">
+    <a href="{{ url_for('practice_page') }}" class="btn btn-primary">练习错词</a>
+    <button class="btn btn-danger" id="clearAllBtn">清空错词本</button>
+</div>
+
+<div class="wrong-words-table-wrapper">
+    <table class="wrong-words-table">
+        <thead>
+            <tr>
+                <th>单词</th>
+                <th>你的答案</th>
+                <th>正确答案</th>
+                <th>错误类型</th>
+                <th>错误次数</th>
+                <th>最近错误时间</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ww in wrong_words %}
+            <tr>
+                <td class="word-cell">{{ ww.word }}</td>
+                <td class="answer-cell">{{ ww.student_answer }}</td>
+                <td class="correct-cell">{{ ww.correct_answer }}</td>
+                <td>
+                    <span class="error-tag error-tag-{{ ww.error_category }}">
+                        {% if ww.error_category == 'spelling' %}拼写错误
+                        {% elif ww.error_category == 'confusable' %}形近词混淆
+                        {% elif ww.error_category == 'meaning' %}词义答错
+                        {% else %}答案不正确{% endif %}
+                    </span>
+                </td>
+                <td>{{ ww.mistake_count }}</td>
+                <td class="time-cell">{{ ww.last_mistake_time[:19] }}</td>
+                <td>
+                    <button class="btn btn-sm btn-danger delete-btn" data-id="{{ ww.id }}">删除</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="empty-icon">🎉</div>
+    <p>错词本为空，快去练习吧！</p>
+    <a href="{{ url_for('practice_page') }}" class="btn btn-primary">开始自测</a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Wrong-word page: delete and clear actions
+document.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const id = this.dataset.id;
+        if (!confirm('确定要删除这条错词记录吗？')) return;
+        fetch('/api/wrong-words/' + id, { method: 'DELETE' })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    this.closest('tr').remove();
+                    location.reload();
+                } else {
+                    alert('删除失败：' + (data.error || '未知错误'));
+                }
+            })
+            .catch(() => alert('删除失败，请重试。'));
+    });
+});
+
+document.getElementById('clearAllBtn')?.addEventListener('click', function() {
+    if (!confirm('确定要清空所有错词记录吗？此操作不可撤销。')) return;
+    fetch('/api/wrong-words/clear', { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            }
+        })
+        .catch(() => alert('操作失败，请重试。'));
+});
+</script>
+{% endblock %}

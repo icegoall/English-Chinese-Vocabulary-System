@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}单词自测 - 英语单词智能记忆系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>单词自测</h1>
+    <p class="page-subtitle">选择测试模式，检验你的词汇掌握程度</p>
+</div>
+
+<!-- Mode selection screen -->
+<div id="modeScreen" class="mode-screen">
+    <div class="mode-grid">
+        <div class="mode-card" id="modeEn2Cn">
+            <div class="mode-icon">🇨🇳</div>
+            <h3>英译中（选择题）</h3>
+            <p>看英文单词，选择正确的中文释义</p>
+            <button class="btn btn-primary btn-large" onclick="startPractice('en2cn')">开始测试</button>
+        </div>
+        <div class="mode-card" id="modeCn2En">
+            <div class="mode-icon">⌨</div>
+            <h3>中译英（拼写题）</h3>
+            <p>看中文释义，输入正确的英文单词</p>
+            <button class="btn btn-primary btn-large" onclick="startPractice('cn2en')">开始测试</button>
+        </div>
+    </div>
+    <div class="mode-options">
+        <label>题目数量：</label>
+        <select id="questionCount">
+            <option value="5">5 题</option>
+            <option value="10" selected>10 题</option>
+            <option value="15">15 题</option>
+            <option value="20">20 题</option>
+        </select>
+    </div>
+</div>
+
+<!-- Quiz screen -->
+<div id="quizScreen" class="quiz-screen" style="display:none;">
+    <div class="quiz-progress">
+        <span id="progressText">第 1 / 10 题</span>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+    </div>
+
+    <div class="quiz-question" id="questionArea"></div>
+
+    <div class="quiz-actions">
+        <button class="btn btn-secondary" id="prevBtn" onclick="prevQuestion()" style="display:none;">上一题</button>
+        <button class="btn btn-primary" id="nextBtn" onclick="nextQuestion()" disabled>下一题</button>
+        <button class="btn btn-success" id="submitBtn" onclick="submitPractice()" style="display:none;" disabled>提交答卷</button>
+    </div>
+</div>
+
+<!-- Loading screen -->
+<div id="loadingScreen" class="loading-screen" style="display:none;">
+    <div class="spinner"></div>
+    <p>正在生成题目...</p>
+</div>
+
+<!-- Error message -->
+<div id="errorBanner" class="error-banner" style="display:none;">
+    <p id="errorText"></p>
+    <button class="btn btn-secondary" onclick="backToMode()">返回</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let practiceMode = '';
+let questions = [];
+let currentAnswers = [];
+let currentQuestionIndex = 0;
+
+function startPractice(mode) {
+    practiceMode = mode;
+    const count = document.getElementById('questionCount').value;
+    document.getElementById('modeScreen').style.display = 'none';
+    document.getElementById('loadingScreen').style.display = 'block';
+    fetch('/api/practice/questions?mode=' + mode + '&count=' + count)
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) { showError(data.error); return; }
+            questions = data.questions;
+            currentAnswers = new Array(questions.length).fill(null);
+            currentQuestionIndex = 0;
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('quizScreen').style.display = 'block';
+            renderQuestion();
+        })
+        .catch(() => showError('无法加载题目，请重试。'));
+}
+
+function renderQuestion() {
+    const q = questions[currentQuestionIndex];
+    const area = document.getElementById('questionArea');
+    const total = questions.length;
+    document.getElementById('progressText').textContent = '第 ' + (currentQuestionIndex + 1) + ' / ' + total + ' 题';
+    document.getElementById('progressFill').style.width = (((currentQuestionIndex + 1) / total) * 100) + '%';
+
+    if (q.type === 'en2cn') {
+        let optionsHtml = '';
+        q.options.forEach(function(opt, idx) {
+            const selected = currentAnswers[currentQuestionIndex] === opt ? 'selected' : '';
+            optionsHtml += '<button class="option-btn ' + selected + '" data-opt="' + escapeAttr(opt) + '">' + opt + '</button>';
+        });
+        area.innerHTML =
+            '<div class="question-prompt">' +
+                '<p class="question-label">请选择下列英文单词的正确中文释义：</p>' +
+                '<h2 class="question-word">' + q.prompt + '<span class="question-pos">' + q.pos + '</span></h2>' +
+            '</div>' +
+            '<div class="question-options">' + optionsHtml + '</div>';
+        area.querySelectorAll('.option-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                selectOption(this.dataset.opt, this);
+            });
+        });
+    } else {
+        const currentVal = currentAnswers[currentQuestionIndex] || '';
+        area.innerHTML =
+            '<div class="question-prompt">' +
+                '<p class="question-label">请输入下列中文释义对应的英文单词：</p>' +
+                '<h2 class="question-word">' + q.prompt + '<span class="question-pos">' + q.pos + '</span></h2>' +
+            '</div>' +
+            '<div class="question-input">' +
+                '<input type="text" id="spellingInput" placeholder="请输入英文单词..." value="' + escapeAttr(currentVal) + '" autocomplete="off">' +
+            '</div>';
+        const inp = document.getElementById('spellingInput');
+        inp.addEventListener('input', function() { onSpellingInput(this.value); });
+        inp.focus();
+    }
+
+    document.getElementById('prevBtn').style.display = currentQuestionIndex > 0 ? 'inline-block' : 'none';
+    const isLast = currentQuestionIndex === total - 1;
+    document.getElementById('nextBtn').style.display = isLast ? 'none' : 'inline-block';
+    document.getElementById('submitBtn').style.display = isLast ? 'inline-block' : 'none';
+    updateActionButtons();
+}
+
+function selectOption(value, btn) {
+    currentAnswers[currentQuestionIndex] = value;
+    document.querySelectorAll('.option-btn').forEach(function(b) { b.classList.remove('selected'); });
+    btn.classList.add('selected');
+    updateActionButtons();
+}
+
+function onSpellingInput(value) {
+    currentAnswers[currentQuestionIndex] = value.trim();
+    updateActionButtons();
+}
+
+function updateActionButtons() {
+    const answered = currentAnswers[currentQuestionIndex] !== null && currentAnswers[currentQuestionIndex] !== '';
+    document.getElementById('nextBtn').disabled = !answered;
+    document.getElementById('submitBtn').disabled = !answered;
+}
+
+function prevQuestion() {
+    if (currentQuestionIndex > 0) { currentQuestionIndex--; renderQuestion(); }
+}
+
+function nextQuestion() {
+    if (currentQuestionIndex < questions.length - 1) { currentQuestionIndex++; renderQuestion(); }
+}
+
+function submitPractice() {
+    const answers = questions.map(function(q, idx) {
+        const studentAnswer = currentAnswers[idx] || '';
+        if (q.type === 'en2cn') {
+            return { word: q.word, correct_meaning: q.correct_meaning, student_answer: studentAnswer };
+        } else {
+            return { word: q.word, correct_meaning: q.correct_meaning, student_answer: studentAnswer, confusable: q.confusable || [] };
+        }
+    });
+    document.getElementById('quizScreen').style.display = 'none';
+    document.getElementById('loadingScreen').style.display = 'block';
+    document.getElementById('loadingScreen').querySelector('p').textContent = '正在分析答卷...';
+    fetch('/api/practice/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: practiceMode, answers: answers }),
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) { showError(data.error); return; }
+            window.location.href = '/results';
+        })
+        .catch(() => showError('提交失败，请重试。'));
+}
+
+function backToMode() {
+    document.getElementById('errorBanner').style.display = 'none';
+    document.getElementById('modeScreen').style.display = 'block';
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('quizScreen').style.display = 'none';
+}
+
+function showError(msg) {
+    document.getElementById('errorText').textContent = msg;
+    document.getElementById('errorBanner').style.display = 'block';
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('quizScreen').style.display = 'none';
+}
+
+function escapeAttr(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# SQLite databases (created locally when applications run)
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+sts-creds.*
+sts-*.json
+
+# Logs and temporary files
+*.log
+tmp/
+temp/
+
+# IDE and AI agent temporary files
+.vscode/
+.idea/
+.agents/
+.claude/
+.codeartsdoer/
+
+# Node dependencies
+node_modules/
+dist/
+build/

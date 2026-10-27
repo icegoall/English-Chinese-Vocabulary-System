@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}英语单词智能记忆系统{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="{{ url_for('index') }}" class="nav-logo">
+                <span class="logo-icon">📚</span>
+                <span class="logo-text">英语单词智能记忆系统</span>
+            </a>
+            <button class="nav-toggle" id="navToggle" aria-label="菜单">
+                <span></span><span></span><span></span>
+            </button>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint == 'index' else '' }}">首页</a></li>
+                <li><a href="{{ url_for('vocabulary_page') }}" class="{{ 'active' if request.endpoint == 'vocabulary_page' else '' }}">词汇库</a></li>
+                <li><a href="{{ url_for('practice_page') }}" class="{{ 'active' if request.endpoint == 'practice_page' else '' }}">单词自测</a></li>
+                <li><a href="{{ url_for('wrong_words_page') }}" class="{{ 'active' if request.endpoint == 'wrong_words_page' else '' }}">错词本</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <p>中学生英语单词智能记忆与错词分析系统 &copy; 2026</p>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

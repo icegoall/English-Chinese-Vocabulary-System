@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}首页 - 英语单词智能记忆系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>学习仪表盘</h1>
+    <p class="page-subtitle">欢迎来到英语单词智能记忆与错词分析系统</p>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card stat-blue">
+        <div class="stat-icon">📖</div>
+        <div class="stat-value">{{ total_words }}</div>
+        <div class="stat-label">词汇总量</div>
+    </div>
+    <div class="stat-card stat-green">
+        <div class="stat-icon">✏️</div>
+        <div class="stat-value">{{ total_questions }}</div>
+        <div class="stat-label">累计答题数</div>
+    </div>
+    <div class="stat-card stat-purple">
+        <div class="stat-icon">✅</div>
+        <div class="stat-value">{{ correct_answers }}</div>
+        <div class="stat-label">答对题数</div>
+    </div>
+    <div class="stat-card stat-red">
+        <div class="stat-icon">❌</div>
+        <div class="stat-value">{{ incorrect_answers }}</div>
+        <div class="stat-label">答错题数</div>
+    </div>
+    <div class="stat-card stat-orange">
+        <div class="stat-icon">🎯</div>
+        <div class="stat-value">{{ accuracy }}%</div>
+        <div class="stat-label">正确率</div>
+    </div>
+    <div class="stat-card stat-teal">
+        <div class="stat-icon">📝</div>
+        <div class="stat-value">{{ wrong_count }}</div>
+        <div class="stat-label">错词本记录</div>
+    </div>
+</div>
+
+<div class="action-grid">
+    <a href="{{ url_for('vocabulary_page') }}" class="action-card">
+        <div class="action-icon">📖</div>
+        <h3>浏览词汇库</h3>
+        <p>查看所有单词，学习释义和例句</p>
+    </a>
+    <a href="{{ url_for('practice_page') }}" class="action-card">
+        <div class="action-icon">✏️</div>
+        <h3>开始自测</h3>
+        <p>随机出题，即时反馈，智能错词分析</p>
+    </a>
+    <a href="{{ url_for('wrong_words_page') }}" class="action-card">
+        <div class="action-icon">📝</div>
+        <h3>复习错词</h3>
+        <p>查看错词本，针对性复习薄弱单词</p>
+    </a>
+</div>
+
+{% if total_questions == 0 %}
+<div class="info-banner">
+    <p>👋 你还没有开始练习，点击「开始自测」来检验你的英语词汇水平吧！</p>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}测试结果 - 英语单词智能记忆系统{% endblock %}
+
+{% block content %}
+{% if has_results %}
+<div class="page-header">
+    <h1>测试结果</h1>
+    <p class="page-subtitle">
+        {% if results.mode == 'en2cn' %}英译中（选择题）{% else %}中译英（拼写题）{% endif %}
+    </p>
+</div>
+
+<div class="results-summary">
+    <div class="summary-card summary-total">
+        <div class="summary-value">{{ results.total }}</div>
+        <div class="summary-label">总题数</div>
+    </div>
+    <div class="summary-card summary-correct">
+        <div class="summary-value">{{ results.correct }}</div>
+        <div class="summary-label">答对</div>
+    </div>
+    <div class="summary-card summary-incorrect">
+        <div class="summary-value">{{ results.incorrect }}</div>
+        <div class="summary-label">答错</div>
+    </div>
+    <div class="summary-card summary-accuracy">
+        <div class="summary-value">{{ results.accuracy }}%</div>
+        <div class="summary-label">正确率</div>
+    </div>
+</div>
+
+{% if results.accuracy >= 80 %}
+<div class="result-banner result-banner-success">
+    <p>🎉 表现优秀！继续保持！</p>
+</div>
+{% elif results.accuracy >= 60 %}
+<div class="result-banner result-banner-warning">
+    <p>💪 还不错，继续努力可以提高！</p>
+</div>
+{% else %}
+<div class="result-banner result-banner-danger">
+    <p>📚 需要多多练习，建议复习错词本中的单词。</p>
+</div>
+{% endif %}
+
+<div class="results-details">
+    <h2>详细分析</h2>
+    {% for detail in results.details %}
+    <div class="detail-item {{ 'detail-correct' if detail.is_correct else 'detail-incorrect' }}">
+        <div class="detail-header">
+            <span class="detail-word">{{ detail.word }}</span>
+            {% if detail.is_correct %}
+            <span class="detail-status status-correct">✅ 正确</span>
+            {% else %}
+            <span class="detail-status status-incorrect">❌ {{ detail.error_category_label }}</span>
+            {% endif %}
+        </div>
+        {% if not detail.is_correct %}
+        <div class="detail-body">
+            <p class="detail-answer">你的答案：<span class="answer-wrong">{{ detail.student_answer }}</span></p>
+            <p class="detail-answer">正确答案：<span class="answer-right">{{ detail.correct_answer }}</span></p>
+            <p class="detail-explanation">{{ detail.explanation }}</p>
+        </div>
+        {% else %}
+        <div class="detail-body">
+            <p class="detail-explanation">{{ detail.explanation }}</p>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<div class="results-actions">
+    <a href="{{ url_for('practice_page') }}" class="btn btn-primary">再测一次</a>
+    <a href="{{ url_for('wrong_words_page') }}" class="btn btn-secondary">查看错词本</a>
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">返回首页</a>
+</div>
+
+{% else %}
+<div class="empty-state">
+    <div class="empty-icon">📋</div>
+    <p>暂无测试结果，请先完成一次自测。</p>
+    <a href="{{ url_for('practice_page') }}" class="btn btn-primary">开始自测</a>
+</div>
+{% endif %}
+{% endblock %}
