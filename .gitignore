@@ -39,3 +39,11 @@ temp/
 node_modules/
 dist/
 build/
+# Local server runtime files
+.merkle-snapshot.json
+server_pids.txt
+server_status.txt
+v1_err.txt
+v1_out.txt
+v2_err.txt
+v2_out.txt
